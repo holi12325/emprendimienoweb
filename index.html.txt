@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <!-- Esencial para el diseño responsivo en móviles -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visor 3D para Móvil</title>
+    
+    <!-- Tailwind CSS para un diseño limpio y rápido -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        /* Estilos para asegurar que el canvas ocupe toda la pantalla */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Evita barras de scroll */
+            background-color: #111827; /* Fondo oscuro */
+        }
+        #webgl-canvas {
+            display: block; /* Elimina espacio extra debajo del canvas */
+            width: 100%;
+            height: 100%;
+        }
+        .info-text {
+            /* Posiciona el texto sobre el canvas */
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-family: sans-serif;
+            font-size: 14px;
+            text-align: center;
+            pointer-events: none; /* Permite que los toques atraviesen el texto */
+        }
+    </style>
+</head>
+<body>
+
+    <!-- El contenedor donde se renderizará la escena 3D -->
+    <canvas id="webgl-canvas"></canvas>
+    
+    <!-- Texto de ayuda -->
+    <div class="info-text">
+        <p>Arrastra con el dedo para rotar</p>
+        <p>Pellizca para hacer zoom</p>
+    </div>
+
+    <!-- Import Map: Simplifica la importación de módulos de three.js -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        // Importamos los módulos necesarios de three.js
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- CONFIGURACIÓN BÁSICA ---
+
+        // 1. Escena: El contenedor de todos los objetos 3D.
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111827); // Mismo color que el body
+
+        // 2. Cámara: El punto de vista desde el que vemos la escena.
+        // Usamos una PerspectiveCamera para simular la visión humana.
+        const camera = new THREE.PerspectiveCamera(
+            75, // Campo de visión (FOV)
+            window.innerWidth / window.innerHeight, // Relación de aspecto
+            0.1, // Plano de corte cercano
+            1000 // Plano de corte lejano
+        );
+        camera.position.z = 5; // Alejamos un poco la cámara
+
+        // 3. Renderer: El motor que dibuja la escena en el canvas.
+        const canvas = document.getElementById('webgl-canvas');
+        const renderer = new THREE.WebGLRenderer({ 
+            canvas: canvas,
+            antialias: true // Suaviza los bordes de los objetos
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Mejora la calidad en pantallas de alta resolución
+
+        // --- CONTROLES ---
+
+        // OrbitControls permite rotar (arrastrar), hacer zoom (pellizcar/rueda del ratón) y mover la cámara (pan).
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; // Efecto de "inercia" suave al soltar el objeto
+        controls.dampingFactor = 0.05;
+        controls.enablePan = false; // Deshabilitamos el movimiento lateral para una experiencia más simple
+        controls.minDistance = 2; // Zoom mínimo
+        controls.maxDistance = 10; // Zoom máximo
+        controls.autoRotate = true; // Rotación automática inicial
+        controls.autoRotateSpeed = 1.0;
+
+        // --- LUCES ---
+
+        // La luz ambiental ilumina todos los objetos de la escena de manera uniforme.
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        // La luz puntual emite luz desde un punto específico.
+        const pointLight = new THREE.PointLight(0xffffff, 1);
+        pointLight.position.set(5, 5, 5); // Posición de la luz
+        scene.add(pointLight);
+
+        // --- OBJETOS 3D ---
+
+        // Geometría: La forma del objeto. Usamos un 'TorusKnot' por ser visualmente interesante.
+        const geometry = new THREE.TorusKnotGeometry(1, 0.4, 100, 16);
+        
+        // Material: La apariencia del objeto (color, textura, etc.).
+        // MeshStandardMaterial es un material físicamente realista que reacciona a la luz.
+        const material = new THREE.MeshStandardMaterial({
+            color: 0x22c55e, // Un color verde brillante
+            metalness: 0.7, // Qué tan metálico es el material
+            roughness: 0.2, // Qué tan rugosa es la superficie
+        });
+
+        // Malla (Mesh): La combinación de la geometría y el material.
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh); // Añadimos la malla a la escena
+
+        // --- ANIMACIÓN ---
+
+        // El bucle de animación se ejecuta en cada fotograma para redibujar la escena.
+        const animate = () => {
+            // Solicita al navegador que programe una nueva animación para el próximo fotograma.
+            requestAnimationFrame(animate);
+
+            // Actualiza los controles (necesario si enableDamping está activado).
+            controls.update();
+
+            // Renderiza la escena desde el punto de vista de la cámara.
+            renderer.render(scene, camera);
+        };
+
+        // --- MANEJO DE REDIMENSIONAMIENTO DE VENTANA ---
+
+        // Esta función se asegura de que el canvas y la cámara se ajusten si el tamaño de la ventana cambia.
+        const handleResize = () => {
+            // Actualizar dimensiones
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+
+            // Actualizar relación de aspecto de la cámara
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+
+            // Actualizar tamaño del renderer y pixel ratio
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        };
+
+        window.addEventListener('resize', handleResize);
+
+        // Detener la rotación automática cuando el usuario interactúa por primera vez.
+        const stopAutoRotate = () => {
+            controls.autoRotate = false;
+            // Quitamos los listeners una vez que se han activado para no ejecutarlos innecesariamente.
+            canvas.removeEventListener('pointerdown', stopAutoRotate);
+            canvas.removeEventListener('wheel', stopAutoRotate);
+        };
+
+        canvas.addEventListener('pointerdown', stopAutoRotate); // Para clicks y toques
+        canvas.addEventListener('wheel', stopAutoRotate); // Para la rueda del ratón
+
+        // Iniciar la animación
+        animate();
+    </script>
+</body>
+</html>
